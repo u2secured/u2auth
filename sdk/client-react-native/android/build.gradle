@@ -1,0 +1,50 @@
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath "com.android.tools.build:gradle:8.3.0"
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.24"
+    }
+}
+
+apply plugin: "com.android.library"
+apply plugin: "kotlin-android"
+
+android {
+    namespace "com.u2secured.authclient"
+    compileSdk 34
+
+    defaultConfig {
+        minSdk 23  // BiometricPrompt requires API 28+; strong-box Keystore available 28+.
+                   // Minimum 23 allows the library to be installed on more devices while
+                   // the runtime check in U2AuthBiometricModule guards the prompt call.
+        targetSdk 34
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+
+repositories {
+    google()
+    mavenCentral()
+}
+
+dependencies {
+    // React Native — provided by the host application at runtime.
+    implementation "com.facebook.react:react-android"
+
+    // AndroidX Biometric — wraps BiometricPrompt + FingerprintManager compat layer.
+    implementation "androidx.biometric:biometric:1.2.0-alpha05"
+
+    // Kotlin stdlib
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:1.9.24"
+}

@@ -1,0 +1,44 @@
+{
+  "name": "@u2secured/authenticator-client-react-native",
+  "version": "0.1.0",
+  "description": "React Native implementation of the U2 Secured Authenticator client SDK \u2014 hardware keystore, biometric, and push token native modules.",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "files": [
+    "src",
+    "ios",
+    "android",
+    "expo-plugin",
+    "U2AuthClientRN.podspec",
+    "!src/**/*.test.ts"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "@u2secured/authenticator-client": "^0.1.0",
+    "react": ">=18",
+    "react-native": ">=0.72"
+  },
+  "devDependencies": {
+    "@types/react-native": "^0.72.0",
+    "@u2secured/authenticator-client": "file:../client",
+    "typescript": "^5.6.0",
+    "vitest": "^2.0.0"
+  },
+  "author": "DollarMates Dev <dev@dollarmates.com>",
+  "homepage": "https://auth.u2secured.com/developer/docs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/u2secured/u2auth.git",
+    "directory": "sdk/client-react-native"
+  },
+  "bugs": {
+    "url": "https://github.com/u2secured/u2auth/issues"
+  }
+}
