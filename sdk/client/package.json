@@ -1,0 +1,34 @@
+{
+  "name": "@u2secured/authenticator-client",
+  "version": "0.1.0",
+  "description": "Embeddable tap-to-approve client SDK for U2 Secured Authenticator (core).",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "prepack": "npm run build",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  },
+  "author": "DollarMates Dev <dev@dollarmates.com>",
+  "homepage": "https://auth.u2secured.com/developer/docs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/u2secured/u2auth.git",
+    "directory": "sdk/client"
+  },
+  "bugs": {
+    "url": "https://github.com/u2secured/u2auth/issues"
+  }
+}
