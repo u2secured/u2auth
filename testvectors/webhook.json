@@ -1,0 +1,12 @@
+{
+  "secret": "whsec_testsecret",
+  "timestamp": 1700000000,
+  "body": "{\"approval_id\":\"ap_test123\",\"status\":\"approved\",\"reason\":\"user_approved\",\"resolved_at\":\"2023-11-14T22:13:20Z\"}",
+  "signature_header": "t=1700000000,v1=c82754944f58757c275f33f696160f47d1fe94e6430ea4ec8bed1aed3326780f",
+  "expected_event": {
+    "approval_id": "ap_test123",
+    "status": "approved",
+    "reason": "user_approved",
+    "resolved_at": "2023-11-14T22:13:20Z"
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "_comment": "Shared TOTP vectors. Generated from the same algorithm the U2 Secured Authenticator backend runs (internal/totp). Every SDK's local validateTOTP must agree with these, so local validation can never drift from the server's answer.",
+  "digits": 6,
+  "period_sec": 30,
+  "cases": [
+    {
+      "name": "current window",
+      "secret": "JBSWY3DPEHPK3PXP",
+      "time": 1700000000,
+      "code": "324550",
+      "valid": true
+    },
+    {
+      "name": "previous window accepted",
+      "secret": "JBSWY3DPEHPK3PXP",
+      "time": 1700000000,
+      "code": "822542",
+      "valid": true
+    },
+    {
+      "name": "next window accepted",
+      "secret": "JBSWY3DPEHPK3PXP",
+      "time": 1700000000,
+      "code": "367665",
+      "valid": true
+    },
+    {
+      "name": "two windows back rejected",
+      "secret": "JBSWY3DPEHPK3PXP",
+      "time": 1700000000,
+      "code": "968785",
+      "valid": false
+    },
+    {
+      "name": "two windows forward rejected",
+      "secret": "JBSWY3DPEHPK3PXP",
+      "time": 1700000000,
+      "code": "870960",
+      "valid": false
+    },
+    {
+      "name": "wrong code",
+      "secret": "JBSWY3DPEHPK3PXP",
+      "time": 1700000000,
+      "code": "000000",
+      "valid": false
+    },
+    {
+      "name": "padded base32 secret",
+      "secret": "MRSW23ZNONSWG4TFOQ======",
+      "time": 1700000000,
+      "code": "131016",
+      "valid": true
+    },
+    {
+      "name": "lowercase secret is accepted",
+      "secret": "jbswy3dpehpk3pxp",
+      "time": 1700000000,
+      "code": "324550",
+      "valid": true
+    }
+  ]
+}
