@@ -1,0 +1,64 @@
+{
+  "name": "@u2secured/u2auth",
+  "version": "0.1.0",
+  "description": "U2Auth SDK for Node.js/TypeScript",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.0",
+    "@types/jest": "^29.5.0",
+    "@types/node": "^20.0.0"
+  },
+  "jest": {
+    "preset": "ts-jest/presets/default-esm",
+    "testEnvironment": "node",
+    "extensionsToTreatAsEsm": [
+      ".ts"
+    ],
+    "moduleNameMapper": {
+      "^(\\.{1,2}/.*)\\.js$": "$1"
+    },
+    "transform": {
+      "^.+\\.tsx?$": [
+        "ts-jest",
+        {
+          "useESM": true
+        }
+      ]
+    }
+  },
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "DollarMates Dev <dev@dollarmates.com>",
+  "homepage": "https://auth.u2secured.com/developer/docs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/u2secured/u2auth.git",
+    "directory": "sdk/node"
+  },
+  "bugs": {
+    "url": "https://github.com/u2secured/u2auth/issues"
+  },
+  "keywords": [
+    "2fa",
+    "mfa",
+    "totp",
+    "push",
+    "authentication",
+    "u2secured"
+  ],
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ]
+}
