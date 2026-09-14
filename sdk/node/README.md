@@ -34,7 +34,7 @@ Calls `POST /api/v1/sdk/totp/verify`. Returns `{ valid: boolean }`.
 
 ### `client.requestPush(userIdentifier, context, opts?): Promise<PushResult>`
 
-Calls `POST /api/v1/sdk/push/request`. `PushOptions`: `webhook_url?`, `ttl?`.
+Calls `POST /api/v1/sdk/push/request`. `PushOptions`: `webhook_url?`, `ttl?`, `idempotency_key?`.
 Returns `{ approval_id, status, expires_at }`.
 
 `userIdentifier` matching is case-sensitive and otherwise unnormalised — it's your own key into
@@ -94,6 +94,29 @@ generateRecoveryCodes(count?: number): string[]
 ### Error Handling
 
 API errors throw `U2AuthError` with `.statusCode` and `.code` properties.
+
+Pass the idempotency option to suppress duplicate requests. While the approval is
+still pending, repeating the call with the same key returns the original — same
+`approval_id`, same `match_number`, and no second notification:
+
+```ts
+const push = await client.requestPush("user@example.com", "Login from Chrome", {
+  idempotency_key: formNonce,
+});
+```
+
+The key frees itself once the approval is approved, denied or expired, so a
+genuine retry after that mints a new request. This is **not** Stripe-style
+idempotency: there is no fixed replay window and no stored-response replay.
+
+The key must be stable across the retry, so the SDK cannot invent one for you: a
+key minted inside the call is a new key every call and protects nothing. Mint a
+nonce when the login form is rendered and carry it in a hidden field — a
+double-click and a back-then-resubmit both send the same one, while a fresh page
+load mints a new one.
+
+Reusing a live key for a different request raises `U2AuthError` with code `IDEMPOTENCY_KEY_REUSED`; a key over
+255 characters raises `INVALID_IDEMPOTENCY_KEY`.
 
 ## Verifying webhooks
 

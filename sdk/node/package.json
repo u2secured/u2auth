@@ -1,6 +1,6 @@
 {
   "name": "@u2secured/u2auth",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "U2Auth SDK for Node.js/TypeScript",
   "type": "module",
   "main": "dist/index.js",

@@ -32,6 +32,25 @@ export interface PairingCode {
 export interface PushOptions {
   webhook_url?: string;
   ttl?: number;
+  /**
+   * Collapses a repeated requestPush into the ORIGINAL approval instead of
+   * sending the user a second notification. Travels as the Idempotency-Key
+   * HTTP header, never in the body.
+   *
+   * The key must be stable across the retry, so the SDK cannot invent one for
+   * you: derive it from whatever identifies the attempt in your system. A nonce
+   * rendered into the login form works well, because a double-click and a
+   * back-then-resubmit both carry the same one while a fresh page load mints a
+   * new one.
+   *
+   * This is not Stripe-style idempotency: there is no fixed replay window. The
+   * server frees the key once the approval is approved, denied or expired, so a
+   * genuine retry after that mints a new request rather than replaying the old
+   * one. A key held by a live approval for a DIFFERENT request throws
+   * U2AuthError with code "IDEMPOTENCY_KEY_REUSED"; one longer than 255
+   * characters throws code "INVALID_IDEMPOTENCY_KEY".
+   */
+  idempotency_key?: string;
 }
 
 /**
@@ -143,12 +162,18 @@ export class U2Auth {
     context: string,
     opts?: PushOptions
   ): Promise<PushResult> {
-    return this.post<PushResult>("/api/v1/sdk/push/request", {
-      user_identifier: userIdentifier,
-      context,
-      ...(opts?.webhook_url ? { webhook_url: opts.webhook_url } : {}),
-      ...(opts?.ttl ? { ttl: opts.ttl } : {}),
-    });
+    return this.post<PushResult>(
+      "/api/v1/sdk/push/request",
+      {
+        user_identifier: userIdentifier,
+        context,
+        ...(opts?.webhook_url ? { webhook_url: opts.webhook_url } : {}),
+        ...(opts?.ttl ? { ttl: opts.ttl } : {}),
+      },
+      opts?.idempotency_key
+        ? { "Idempotency-Key": opts.idempotency_key }
+        : undefined
+    );
   }
 
   /**
@@ -254,12 +279,22 @@ export class U2Auth {
     );
   }
 
-  private async post<T>(path: string, body: unknown): Promise<T> {
+  /**
+   * extraHeaders is spread last but cannot clobber auth: an empty value is
+   * dropped by the caller, and the server distinguishes a present-but-blank
+   * Idempotency-Key from an absent one.
+   */
+  private async post<T>(
+    path: string,
+    body: unknown,
+    extraHeaders?: Record<string, string>
+  ): Promise<T> {
     const response = await fetch(`${this.baseURL}${path}`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
         "Content-Type": "application/json",
+        ...(extraHeaders ?? {}),
       },
       body: JSON.stringify(body),
     });

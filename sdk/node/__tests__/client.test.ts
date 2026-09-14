@@ -548,3 +548,47 @@ describe("U2Auth.deleteEnrolment", () => {
     }
   });
 });
+
+describe("U2Auth.requestPush idempotency", () => {
+  // The Idempotency-Key is an HTTP HEADER, not a body field. A key that leaks
+  // into the JSON body is silently ignored by the server — the retry it was
+  // meant to collapse sends the user a second push, and nothing fails loudly.
+  it("sends the key as a header and keeps it out of the body", async () => {
+    let body = "";
+    let header: string | undefined;
+    const { url, close } = await startMockServer((req, res) => {
+      header = req.headers["idempotency-key"] as string | undefined;
+      req.on("data", (chunk) => (body += chunk));
+      req.on("end", () => {
+        jsonResponse(res, 200, { approval_id: "apr_abc", status: "pending" });
+      });
+    });
+
+    const client = new U2Auth("rka_test", { baseURL: url });
+    await client.requestPush("user@example.com", "Login", {
+      idempotency_key: "nonce-123",
+    });
+
+    expect(header).toBe("nonce-123");
+    expect(JSON.parse(body).idempotency_key).toBeUndefined();
+    await close();
+  });
+
+  // A present-but-blank header is not the same as an absent one to the server.
+  it("sends no header when no key is supplied", async () => {
+    let present = true;
+    const { url, close } = await startMockServer((req, res) => {
+      present = "idempotency-key" in req.headers;
+      req.on("end", () => {
+        jsonResponse(res, 200, { approval_id: "apr_abc", status: "pending" });
+      });
+      req.resume();
+    });
+
+    const client = new U2Auth("rka_test", { baseURL: url });
+    await client.requestPush("user@example.com", "Login", { ttl: 60 });
+
+    expect(present).toBe(false);
+    await close();
+  });
+});
