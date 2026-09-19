@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "u2auth"
-version = "0.1.0"
+version = "0.2.0"
 description = "U2Auth SDK for Python — TOTP verification, push approvals, and local TOTP helpers"
 authors = [{ name = "DollarMates Dev", email = "dev@dollarmates.com" }]
 requires-python = ">=3.9"
