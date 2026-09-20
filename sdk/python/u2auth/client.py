@@ -8,7 +8,7 @@ import urllib.request
 from typing import Any, Dict, Optional
 
 
-_DEFAULT_BASE_URL = "https://app.u2secured.io"
+_DEFAULT_BASE_URL = "https://auth.u2secured.com"
 
 
 class U2AuthError(Exception):

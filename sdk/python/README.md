@@ -103,7 +103,7 @@ enrolment = client.wait_for_link(pairing["code"], user_identifier="user@example.
 
 ### `Client(api_key, *, base_url?)`
 
-Sync API client. `base_url` defaults to `https://app.u2secured.io`.
+Sync API client. `base_url` defaults to `https://auth.u2secured.com`.
 
 ### `client.verify_totp(secret, code) -> dict`
 

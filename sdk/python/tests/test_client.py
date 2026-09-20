@@ -822,3 +822,20 @@ class TestDeleteEnrolment:
         assert exc.value.code == "ENROLMENT_NOT_FOUND"
         assert exc.value.status_code == 404
         srv.stop()
+
+
+def test_default_base_url_is_the_production_host():
+    """The default base URL is a security boundary, not a convenience.
+
+    A client built without base_url sends the caller's rka_ key to whatever
+    this names. It named https://app.u2secured.io through 0.2.0 -- a domain
+    nobody had registered, so any stranger could have bought it and collected
+    keys from every integration that took the default. No test referenced the
+    constant, so nothing noticed.
+
+    The literal is asserted rather than the constant against itself, which
+    would pass whatever the constant said.
+    """
+    from u2auth.client import _DEFAULT_BASE_URL
+
+    assert _DEFAULT_BASE_URL == "https://auth.u2secured.com"
