@@ -592,3 +592,200 @@ describe("U2Auth.requestPush idempotency", () => {
     await close();
   });
 });
+
+describe("U2Auth.getEnrolment", () => {
+  it("returns null when the user is not linked", async () => {
+    const { url, close } = await startMockServer((req, res) => {
+      expect(req.url).toContain("user_identifier=ada%40example.com");
+      jsonResponse(res, 200, { items: [], next_cursor: "" });
+    });
+
+    const client = new U2Auth("rka_test", { baseURL: url });
+    // Not an error: "not linked" is the normal answer at login, and forcing
+    // callers into try/catch on the common path is how integrations end up
+    // swallowing real errors too.
+    expect(await client.getEnrolment("ada@example.com")).toBeNull();
+    await close();
+  });
+
+  it("returns the single match with push_ready", async () => {
+    const { url, close } = await startMockServer((req, res) => {
+      jsonResponse(res, 200, {
+        items: [
+          {
+            id: "en_1",
+            user_identifier: "ada@example.com",
+            created_at: "2026-09-15T09:00:00Z",
+            last_auth_at: null,
+            last_auth_outcome: null,
+            push_ready: true,
+          },
+        ],
+        next_cursor: "",
+      });
+    });
+
+    const client = new U2Auth("rka_test", { baseURL: url });
+    const e = await client.getEnrolment("ada@example.com");
+    expect(e?.id).toBe("en_1");
+    expect(e?.push_ready).toBe(true);
+    await close();
+  });
+});
+
+describe("U2Auth.waitForLink", () => {
+  it("polls until the code is redeemed and returns the enrolment", async () => {
+    let call = 0;
+    const { url, close } = await startMockServer((req, res) => {
+      call += 1;
+      if (req.url?.startsWith("/api/v1/sdk/pairing-codes/")) {
+        jsonResponse(res, 200, call === 1 ? { status: "pending" } : { status: "redeemed", enrolment_id: "en_1" });
+        return;
+      }
+      jsonResponse(res, 200, {
+        items: [
+          {
+            id: "en_1",
+            user_identifier: "ada@example.com",
+            created_at: "2026-09-15T09:00:00Z",
+            last_auth_at: null,
+            last_auth_outcome: null,
+            push_ready: false,
+          },
+        ],
+        next_cursor: "",
+      });
+    });
+
+    const client = new U2Auth("rka_test", { baseURL: url });
+    const e = await client.waitForLink("af17-b500", {
+      userIdentifier: "ada@example.com",
+      intervalMs: 1,
+    });
+    expect(e.id).toBe("en_1");
+    await close();
+  });
+
+  it("rejects with PAIRING_CODE_EXPIRED when the code lapses", async () => {
+    const { url, close } = await startMockServer((req, res) => {
+      jsonResponse(res, 200, { status: "expired" });
+    });
+
+    const client = new U2Auth("rka_test", { baseURL: url });
+    await expect(
+      client.waitForLink("af17-b500", { userIdentifier: "ada@example.com", intervalMs: 1 })
+    ).rejects.toMatchObject({ code: "PAIRING_CODE_EXPIRED" });
+    await close();
+  });
+
+  it("rejects with LINK_TIMEOUT once the deadline passes", async () => {
+    const { url, close } = await startMockServer((req, res) => {
+      jsonResponse(res, 200, { status: "pending" });
+    });
+
+    const client = new U2Auth("rka_test", { baseURL: url });
+    await expect(
+      client.waitForLink("af17-b500", {
+        userIdentifier: "ada@example.com",
+        intervalMs: 1,
+        timeoutMs: 3,
+      })
+    ).rejects.toMatchObject({ code: "LINK_TIMEOUT" });
+    await close();
+  });
+
+  // The TypeScript type says userIdentifier is required, but the type is
+  // erased at runtime and this package ships to npm — a plain-JS caller, a TS
+  // caller with strictNullChecks off, or anyone passing an `any`-typed or
+  // JSON-sourced options object gets here with it undefined. Without the
+  // guard, undefined flows into listEnrolments, the user_identifier filter is
+  // dropped from the query, and waitForLink resolves with the app's FIRST
+  // enrolment — belonging to someone else entirely — with no error at all.
+  //
+  // The stub below answers "redeemed" immediately and serves exactly that
+  // other-user enrolment, so an unguarded build fails this test in
+  // milliseconds rather than hanging; timeoutMs is a 3ms backstop.
+  it.each([
+    ["missing", {}],
+    ["empty", { userIdentifier: "" }],
+  ])(
+    "rejects with MISSING_USER_IDENTIFIER, before any request, when userIdentifier is %s",
+    async (_label, badOpts) => {
+      const requests: string[] = [];
+      const { url, close } = await startMockServer((req, res) => {
+        requests.push(req.url ?? "");
+        if (req.url?.startsWith("/api/v1/sdk/pairing-codes/")) {
+          jsonResponse(res, 200, { status: "redeemed", enrolment_id: "en_other" });
+          return;
+        }
+        jsonResponse(res, 200, {
+          items: [
+            {
+              id: "en_other",
+              user_identifier: "SOMEONE-ELSE-ENTIRELY",
+              created_at: "2026-09-15T09:00:00Z",
+              last_auth_at: null,
+              last_auth_outcome: null,
+              push_ready: true,
+            },
+          ],
+          next_cursor: "",
+        });
+      });
+
+      try {
+        const client = new U2Auth("rka_test", { baseURL: url });
+        await expect(
+          client.waitForLink("af17-b500", {
+            ...(badOpts as Record<string, unknown>),
+            intervalMs: 1,
+            timeoutMs: 3,
+          } as unknown as Parameters<U2Auth["waitForLink"]>[1])
+        ).rejects.toMatchObject({ code: "MISSING_USER_IDENTIFIER" });
+
+        // Guarded before the network, exactly as the other five SDKs are.
+        expect(requests).toEqual([]);
+      } finally {
+        await close();
+      }
+    }
+  );
+});
+
+
+/**
+ * The default base URL is a security boundary, not a convenience.
+ *
+ * A client built without `baseURL` sends the caller's rka_ key to whatever it
+ * names. It named https://app.u2secured.io through 0.2.0 -- a domain nobody
+ * had registered, so any stranger could have bought it and collected keys
+ * from every integration that took the default. Nothing caught it: every
+ * other test in this file points the client at a local mock server, so the
+ * default was exercised by no test at all.
+ *
+ * This mocks fetch rather than starting a server, because the whole point is
+ * to observe the host the client chooses when nobody tells it one. The
+ * literal host is asserted, never the constant against itself.
+ */
+describe("default base URL", () => {
+  const realFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+  });
+
+  it("sends requests to the production host when no baseURL is given", async () => {
+    const calls: string[] = [];
+    globalThis.fetch = (async (url: unknown) => {
+      calls.push(String(url));
+      return new Response(JSON.stringify({ valid: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as unknown as typeof fetch;
+
+    await new U2Auth("rka_test").verifyTOTP("S3CR3T", "123456");
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatch(/^https:\/\/auth\.u2secured\.com\//);
+  });
+});

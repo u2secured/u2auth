@@ -75,6 +75,7 @@ export interface Enrolment {
   created_at: string;
   last_auth_at: string | null;
   last_auth_outcome: string | null;
+  push_ready: boolean;
 }
 
 /**
@@ -110,6 +111,7 @@ export interface ListEnrolmentsOptions {
   cursor?: string;
   sort?: "created_at" | "user_identifier" | "last_auth_at";
   order?: "asc" | "desc";
+  user_identifier?: string;
 }
 
 /**
@@ -119,6 +121,24 @@ export interface ListEnrolmentsOptions {
 export interface ListEnrolmentEventsOptions {
   limit?: number;
   cursor?: string;
+}
+
+/**
+ * Where a pairing code is in its lifecycle. A code that never existed, and one
+ * belonging to another app, both report "expired" — distinguishing them would
+ * make the endpoint a probing oracle.
+ */
+export interface PairingCodeStatus {
+  status: "pending" | "redeemed" | "expired";
+  enrolment_id?: string;
+}
+
+export interface WaitForLinkOptions {
+  /** The identifier the code was minted for, used to fetch the enrolment. */
+  userIdentifier: string;
+  intervalMs?: number;
+  timeoutMs?: number;
+  signal?: AbortSignal;
 }
 
 export class U2AuthError extends Error {
@@ -133,7 +153,7 @@ export class U2AuthError extends Error {
   }
 }
 
-const DEFAULT_BASE_URL = "https://app.u2secured.io";
+const DEFAULT_BASE_URL = "https://auth.u2secured.com";
 
 export class U2Auth {
   private readonly apiKey: string;
@@ -248,6 +268,7 @@ export class U2Auth {
     if (opts?.cursor) query.set("cursor", opts.cursor);
     if (opts?.sort) query.set("sort", opts.sort);
     if (opts?.order) query.set("order", opts.order);
+    if (opts?.user_identifier) query.set("user_identifier", opts.user_identifier);
     const qs = query.toString();
     return this.get<Page<Enrolment>>(
       `/api/v1/sdk/enrolments${qs ? `?${qs}` : ""}`
@@ -277,6 +298,87 @@ export class U2Auth {
         qs ? `?${qs}` : ""
       }`
     );
+  }
+
+  /**
+   * Look up this app's enrolment for one user identifier.
+   *
+   * Resolves to null when the user is not linked. Deliberately not a rejection:
+   * at login "not linked" is the normal answer, and a try/catch on the common
+   * path is how integrations end up swallowing real errors too.
+   */
+  async getEnrolment(userIdentifier: string): Promise<Enrolment | null> {
+    const page = await this.listEnrolments({
+      user_identifier: userIdentifier,
+      limit: 1,
+    });
+    return page.items.length > 0 ? page.items[0] : null;
+  }
+
+  /**
+   * Read whether a pairing code is still pending, has been redeemed, or is gone.
+   */
+  async getPairingCodeStatus(code: string): Promise<PairingCodeStatus> {
+    return this.get<PairingCodeStatus>(
+      `/api/v1/sdk/pairing-codes/${encodeURIComponent(code)}`
+    );
+  }
+
+  /**
+   * Poll a pairing code until the user redeems it, then resolve with the
+   * resulting enrolment. The link half of link-then-push, mirroring
+   * waitForApproval so that knowing one means knowing the other.
+   *
+   * Rejects with U2AuthError "MISSING_USER_IDENTIFIER" if opts is missing or
+   * opts.userIdentifier is empty — checked before any request is made. The
+   * required non-optional TypeScript field is NOT a runtime check: the type is
+   * erased at compile time, this package is published to npm, and a
+   * plain-JavaScript caller (or a TS caller with strictNullChecks off, or one
+   * passing an `any`-typed or JSON-sourced options object) reaches this method
+   * with userIdentifier undefined. Without the guard that undefined flows into
+   * getEnrolment -> listEnrolments, where the `if (opts?.user_identifier)`
+   * filter is falsy, drops itself from the query, and resolves with the app's
+   * FIRST enrolment — another user's — silently, on a login path.
+   *
+   * Otherwise rejects with "PAIRING_CODE_EXPIRED" if the code lapses first,
+   * "LINK_TIMEOUT" after timeoutMs, or "ABORTED" if the signal fires.
+   */
+  async waitForLink(code: string, opts: WaitForLinkOptions): Promise<Enrolment> {
+    if (!opts || !opts.userIdentifier) {
+      throw new U2AuthError(
+        0,
+        "MISSING_USER_IDENTIFIER",
+        "waitForLink requires opts.userIdentifier"
+      );
+    }
+    const intervalMs = opts.intervalMs ?? 2000;
+    const timeoutMs = opts.timeoutMs ?? 120000;
+    const deadline = Date.now() + timeoutMs;
+
+    for (;;) {
+      const status = await this.getPairingCodeStatus(code);
+      if (status.status === "redeemed") {
+        const enrolment = await this.getEnrolment(opts.userIdentifier);
+        if (enrolment === null) {
+          throw new U2AuthError(
+            0,
+            "ENROLMENT_NOT_FOUND",
+            "pairing code was redeemed but no enrolment was found for this identifier"
+          );
+        }
+        return enrolment;
+      }
+      if (status.status === "expired") {
+        throw new U2AuthError(0, "PAIRING_CODE_EXPIRED", "pairing code expired before it was redeemed");
+      }
+      if (opts.signal?.aborted) {
+        throw new U2AuthError(0, "ABORTED", "wait aborted");
+      }
+      if (Date.now() >= deadline) {
+        throw new U2AuthError(0, "LINK_TIMEOUT", "timed out waiting for the pairing code to be redeemed");
+      }
+      await new Promise((r) => setTimeout(r, intervalMs));
+    }
   }
 
   /**

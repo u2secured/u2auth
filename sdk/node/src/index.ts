@@ -20,6 +20,14 @@ export type {
   PushStatus,
   PushOptions,
   PairingCode,
+  PairingCodeStatus,
+  Enrolment,
+  EnrolmentEvent,
+  Place,
+  Page,
+  ListEnrolmentsOptions,
+  ListEnrolmentEventsOptions,
+  WaitForLinkOptions,
 } from "./client.js";
 
 export { verifyWebhook } from "./webhook.js";
