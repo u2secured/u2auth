@@ -1,6 +1,6 @@
 {
   "name": "@u2secured/authenticator-client-react-native",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "React Native implementation of the U2 Secured Authenticator client SDK \u2014 hardware keystore, biometric, and push token native modules.",
   "license": "MIT",
   "publishConfig": {

@@ -2,6 +2,8 @@
 
 React Native implementation of the U2 Secured Authenticator client SDK.
 
+Part of [U2 Secured Authenticator](https://u2secured.com/authenticator) · [Documentation](https://auth.u2secured.com/developer/docs)
+
 Wraps the verified TypeScript core (`@u2secured/authenticator-client`) with
 React Native native modules that provide:
 
