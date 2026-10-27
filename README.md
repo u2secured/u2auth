@@ -1,6 +1,6 @@
 # U2 Secured Authenticator SDKs
 
-Client libraries for [U2 Secured Authenticator](https://auth.u2secured.com) — push
+Client libraries for [U2 Secured Authenticator](https://u2secured.com/authenticator) — push
 tap-to-approve two-factor auth, TOTP, and signed webhooks.
 
 **[Documentation](https://auth.u2secured.com/developer/docs)** ·
@@ -17,6 +17,7 @@ tap-to-approve two-factor auth, TOTP, and signed webhooks.
 | React Native | [`@u2secured/authenticator-client-react-native`](https://www.npmjs.com/package/@u2secured/authenticator-client-react-native) | `npm install @u2secured/authenticator-client-react-native` |
 | C# / .NET | `U2Secured.U2Auth` | not yet published |
 | Java | `com.u2secured:u2auth` | not yet published |
+| PHP | [`u2secured/u2auth`](https://packagist.org/packages/u2secured/u2auth) | `composer require u2secured/u2auth` |
 
 The Go SDK lives in its own repository, because a Go module path is its URL and
 the module has to sit at the repository root.
@@ -42,6 +43,27 @@ import { validateTOTP } from "@u2secured/u2auth";
 
 const ok = validateTOTP(secret, userCode);
 ```
+
+## Linking a user
+
+Before a push can reach anyone, bind your own user id to their U2 Secured
+account with a pairing code:
+
+```ts
+const { code } = await client.createPairingCode("user-42");
+// Show `code` to the user; they enter it in the U2 Secured app.
+
+const enrolment = await client.waitForLink(code, { userIdentifier: "user-42" });
+```
+
+`waitForLink` blocks until the code is redeemed. In a web request, poll
+`getPairingCodeStatus(code)` from the browser instead — a server-side wait ties
+up a worker for the whole timeout.
+
+Ask whether someone is linked at any time with `getEnrolment("user-42")`, which
+returns null rather than raising when they are not. Its `push_ready` field tells
+you whether a push would actually reach a device, so you can distinguish "not
+linked" from "linked but pairing unfinished" before sending one.
 
 ## Verifying webhooks
 
