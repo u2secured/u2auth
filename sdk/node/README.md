@@ -2,6 +2,8 @@
 
 Node.js/TypeScript SDK for the U2Auth platform — TOTP verification, push approvals, and local TOTP helpers.
 
+Part of [U2 Secured Authenticator](https://u2secured.com/authenticator) · [Documentation](https://auth.u2secured.com/developer/docs)
+
 ## Install
 
 ```bash
