@@ -1,6 +1,6 @@
 {
   "name": "@u2secured/authenticator-client",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Embeddable tap-to-approve client SDK for U2 Secured Authenticator (core).",
   "license": "MIT",
   "publishConfig": {

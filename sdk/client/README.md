@@ -1,6 +1,8 @@
 # @u2secured/authenticator-client
 
-Framework-agnostic TypeScript core for embedding tap-to-approve into your app using [U2 Secured Authenticator](https://u2secured.com).
+Framework-agnostic TypeScript core for embedding tap-to-approve into your app using [U2 Secured Authenticator](https://u2secured.com/authenticator).
+
+[Documentation](https://auth.u2secured.com/developer/docs)
 
 ## What this package is
 
