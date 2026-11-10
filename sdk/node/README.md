@@ -83,6 +83,27 @@ for (;;) {
 }
 ```
 
+### `client.listSignInLog(opts?): Promise<SignInLogPage>`
+
+Calls `GET /api/v1/sdk/sign-in-log`. Returns `{ items, next_cursor, has_more }`, oldest first. `opts`: `limit?` (default 500, max 1000; `<= 0` is omitted), `cursor?` (omitted when empty). Throws a `U2AuthError` with code `"INVALID_CURSOR"` for a malformed cursor, or `"MACHINE_KEY_NOT_ALLOWED"` if called with a machine key — use an app key.
+
+#### Export the sign-in log
+
+Pull the log on a schedule: load your saved cursor, call `listSignInLog`, persist `next_cursor`, and repeat while `has_more` is true.
+
+```typescript
+let cursor = await loadCursor(); // undefined on the first run
+for (;;) {
+  const page = await client.listSignInLog({ limit: 1000, cursor });
+  for (const ev of page.items) await store(ev);
+  cursor = page.next_cursor;
+  await saveCursor(cursor);
+  if (!page.has_more) break;
+}
+```
+
+Notes: rows are served about 30 seconds after they are recorded, so a fresh sign-in may not appear immediately. An expired push and its machine report both appear as separate rows; they are related by `approval_id`.
+
 ### Linked approvals
 
 "Linked approvals" is link-then-push: a user links their phone to *your* account once (via a

@@ -789,3 +789,129 @@ describe("default base URL", () => {
     expect(calls[0]).toMatch(/^https:\/\/auth\.u2secured\.com\//);
   });
 });
+
+describe("U2Auth.listSignInLog", () => {
+  const fleetRow = {
+    id: "s1",
+    occurred_at: "2026-11-01T10:00:00Z",
+    received_at: "2026-11-01T10:00:20Z",
+    user_identifier: "alice",
+    local_login: "alice",
+    kind: "machine",
+    origin: "ssh",
+    method: "push",
+    outcome: "approved",
+    reason: null,
+    city: "Manchester",
+    region: "ENG",
+    country: "GB",
+    new_country: false,
+    source_ip: "203.0.113.7",
+    machine_id: "m1",
+    machine_name: "web-1",
+    service: "sshd",
+    context: "login",
+    approval_id: "ap1",
+    seq: 42,
+    gap_count: 0,
+    clock_skew_seconds: -3,
+  };
+  const pushRow = {
+    ...fleetRow,
+    id: "s2",
+    kind: "push",
+    city: null,
+    region: null,
+    country: null,
+    source_ip: null,
+    machine_id: null,
+    machine_name: null,
+    service: null,
+    seq: null,
+    gap_count: null,
+    clock_skew_seconds: null,
+  };
+
+  it("hits the sign-in-log path with the auth header and omits unset limit/cursor", async () => {
+    let gotUrl = "";
+    let gotAuth = "";
+    const { url, close } = await startMockServer((req, res) => {
+      gotUrl = req.url ?? "";
+      gotAuth = String(req.headers["authorization"] ?? "");
+      jsonResponse(res, 200, { items: [], next_cursor: "c0", has_more: false });
+    });
+    try {
+      const client = new U2Auth("rka_test", { baseURL: url });
+      await client.listSignInLog();
+      expect(gotUrl).toBe("/api/v1/sdk/sign-in-log");
+      expect(gotAuth).toBe("Bearer rka_test");
+      await client.listSignInLog({ limit: 0, cursor: "" });
+      expect(gotUrl).toBe("/api/v1/sdk/sign-in-log");
+      await client.listSignInLog({ limit: -1 });
+      expect(gotUrl).toBe("/api/v1/sdk/sign-in-log");
+    } finally {
+      await close();
+    }
+  });
+
+  it("sends limit and URL-encodes the cursor", async () => {
+    let gotUrl = "";
+    const { url, close } = await startMockServer((req, res) => {
+      gotUrl = req.url ?? "";
+      jsonResponse(res, 200, { items: [], next_cursor: "", has_more: false });
+    });
+    try {
+      const client = new U2Auth("rka_test", { baseURL: url });
+      await client.listSignInLog({ limit: 25, cursor: "a+b/c=d e" });
+      const [path, qs] = gotUrl.split("?");
+      expect(path).toBe("/api/v1/sdk/sign-in-log");
+      expect(qs).not.toContain("+b/");
+      const query = new URLSearchParams(qs);
+      expect(query.get("limit")).toBe("25");
+      expect(query.get("cursor")).toBe("a+b/c=d e");
+    } finally {
+      await close();
+    }
+  });
+
+  it("decodes fleet and push rows with nulls preserved, and reads has_more", async () => {
+    const { url, close } = await startMockServer((_req, res) => {
+      jsonResponse(res, 200, {
+        items: [fleetRow, pushRow],
+        next_cursor: "c2",
+        has_more: true,
+      });
+    });
+    try {
+      const client = new U2Auth("rka_test", { baseURL: url });
+      const page = await client.listSignInLog();
+      expect(page.has_more).toBe(true);
+      expect(page.next_cursor).toBe("c2");
+      expect(page.items[0]).toEqual(fleetRow);
+      expect(page.items[1].city).toBeNull();
+      expect(page.items[1].machine_id).toBeNull();
+      expect(page.items[1].seq).toBeNull();
+      expect(page.items[1].kind).toBe("push");
+    } finally {
+      await close();
+    }
+  });
+
+  it.each([
+    [400, "INVALID_CURSOR"],
+    [403, "MACHINE_KEY_NOT_ALLOWED"],
+  ])("surfaces %i %s as U2AuthError", async (status, code) => {
+    const { url, close } = await startMockServer((_req, res) => {
+      jsonResponse(res, status, { error: { code, message: "nope" } });
+    });
+    try {
+      const client = new U2Auth("rka_test", { baseURL: url });
+      const err = await client.listSignInLog().catch((e) => e);
+      expect(err).toBeInstanceOf(U2AuthError);
+      expect(err.code).toBe(code);
+      expect(err.statusCode).toBe(status);
+    } finally {
+      await close();
+    }
+  });
+});

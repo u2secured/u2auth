@@ -102,6 +102,46 @@ export interface Page<T> {
 }
 
 /**
+ * One row of the app's sign-in log. Fleet fields (city .. clock_skew_seconds)
+ * are null on rows that do not carry them, e.g. a push row has no machine.
+ * Never contains raw coordinates.
+ */
+export interface SignInLogEvent {
+  id: string;
+  occurred_at: string;
+  received_at: string;
+  user_identifier: string | null;
+  local_login: string | null;
+  kind: string;
+  origin: string | null;
+  method: string | null;
+  outcome: string;
+  reason: string | null;
+  city: string | null;
+  region: string | null;
+  country: string | null;
+  new_country: boolean;
+  source_ip: string | null;
+  machine_id: string | null;
+  machine_name: string | null;
+  service: string | null;
+  context: string | null;
+  approval_id: string | null;
+  seq: number | null;
+  gap_count: number | null;
+  clock_skew_seconds: number | null;
+}
+
+/** One page of the sign-in log. has_more is true when another page is ready. */
+export type SignInLogPage = Page<SignInLogEvent> & { has_more: boolean };
+
+/** Optional parameters for listSignInLog. */
+export interface ListSignInLogOptions {
+  limit?: number;
+  cursor?: string;
+}
+
+/**
  * Optional parameters for listEnrolments. cursor is opaque and bound to the
  * sort/order that minted it — pass it back verbatim on the next call;
  * replaying it under a different sort/order is rejected.
@@ -297,6 +337,26 @@ export class U2Auth {
       `/api/v1/sdk/enrolments/${encodeURIComponent(enrolmentId)}/events${
         qs ? `?${qs}` : ""
       }`
+    );
+  }
+
+  /**
+   * Pull the app's sign-in log, oldest first, one page at a time. Persist
+   * next_cursor and pass it back to resume; keep going while has_more is true.
+   * limit <= 0 and an empty cursor are omitted from the query (default page
+   * 500, max 1000). Rows settle for about 30 seconds before they are served.
+   *
+   * Rejects with a U2AuthError ("INVALID_CURSOR") if cursor is malformed, or
+   * ("MACHINE_KEY_NOT_ALLOWED") if called with a machine-bound key — use an
+   * app key.
+   */
+  async listSignInLog(opts?: ListSignInLogOptions): Promise<SignInLogPage> {
+    const query = new URLSearchParams();
+    if (opts?.limit && opts.limit > 0) query.set("limit", String(opts.limit));
+    if (opts?.cursor) query.set("cursor", opts.cursor);
+    const qs = query.toString();
+    return this.get<SignInLogPage>(
+      `/api/v1/sdk/sign-in-log${qs ? `?${qs}` : ""}`
     );
   }
 
