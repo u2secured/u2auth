@@ -239,6 +239,30 @@ class Client:
         path = f"/api/v1/sdk/enrolments/{enrolment_path}/events"
         return self._get(f"{path}?{query}" if query else path)
 
+    def list_sign_in_log(self, *, limit: int = 0, cursor: str = "") -> Dict[str, Any]:
+        """Pull the app's sign-in log, oldest first.
+
+        limit <= 0 is treated as unset and omitted from the query (the server
+        default is 500, max 1000), same as an empty cursor.
+
+        cursor is opaque; pass back the previous page's next_cursor verbatim.
+        Rows are served about 30 seconds after they are recorded.
+
+        Raises U2AuthError with code 'INVALID_CURSOR' if cursor is malformed,
+        or 'MACHINE_KEY_NOT_ALLOWED' if called with a machine key (use an app
+        key).
+
+        Returns {'items': [...], 'next_cursor': '...', 'has_more': bool}.
+        """
+        params: Dict[str, Any] = {}
+        if limit > 0:
+            params["limit"] = limit
+        if cursor:
+            params["cursor"] = cursor
+        query = urllib.parse.urlencode(params)
+        path = "/api/v1/sdk/sign-in-log"
+        return self._get(f"{path}?{query}" if query else path)
+
     def _post(
         self, path: str, body: Dict[str, Any], headers: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:

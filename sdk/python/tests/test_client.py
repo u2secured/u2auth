@@ -605,6 +605,104 @@ class TestListEnrolmentEvents:
         srv.stop()
 
 
+class TestListSignInLog:
+    PATH = "/api/v1/sdk/sign-in-log"
+
+    def _srv(self, body=None, status=200, **kw):
+        return MockServer(
+            make_handler(
+                status,
+                body if body is not None else {"items": [], "next_cursor": "", "has_more": False},
+                assert_method="GET",
+                assert_path=self.PATH,
+                **kw,
+            )
+        )
+
+    def test_default_call_sends_auth_and_no_query(self):
+        srv = self._srv(assert_query={}, assert_auth="Bearer rka_test")
+        Client("rka_test", base_url=srv.url).list_sign_in_log()
+        srv.stop()
+
+    def test_limit_and_cursor_included_when_given(self):
+        srv = self._srv(assert_query={"limit": "1000", "cursor": "abc"})
+        Client("rka_test", base_url=srv.url).list_sign_in_log(limit=1000, cursor="abc")
+        srv.stop()
+
+    def test_zero_limit_is_omitted(self):
+        srv = self._srv(assert_query={})
+        Client("rka_test", base_url=srv.url).list_sign_in_log(limit=0)
+        srv.stop()
+
+    def test_negative_limit_is_omitted(self):
+        srv = self._srv(assert_query={})
+        Client("rka_test", base_url=srv.url).list_sign_in_log(limit=-1)
+        srv.stop()
+
+    def test_empty_cursor_is_omitted(self):
+        srv = self._srv(assert_query={"limit": "5"})
+        Client("rka_test", base_url=srv.url).list_sign_in_log(limit=5, cursor="")
+        srv.stop()
+
+    def test_cursor_is_url_encoded(self):
+        raw = "a+b/c=d e&f"
+        srv = self._srv(assert_query={"cursor": raw})
+        Client("rka_test", base_url=srv.url).list_sign_in_log(cursor=raw)
+        srv.stop()
+
+    def test_decodes_fleet_and_push_rows_preserving_nulls(self):
+        fleet = {
+            "id": "e1", "occurred_at": "2026-11-10T00:00:00Z",
+            "received_at": "2026-11-10T00:00:05Z", "user_identifier": "alice",
+            "local_login": "alice", "kind": "machine", "origin": "ssh",
+            "method": "push", "outcome": "approved", "reason": "ok",
+            "city": "Berlin", "region": "", "country": "DE", "new_country": True,
+            "source_ip": "203.0.113.9", "machine_id": "m1", "machine_name": "web-1",
+            "service": "sshd", "context": "login", "approval_id": "ap1",
+            "seq": 7, "gap_count": 0, "clock_skew_seconds": 2,
+        }
+        push = {
+            "id": "e2", "occurred_at": "2026-11-10T00:01:00Z",
+            "received_at": "2026-11-10T00:01:01Z", "user_identifier": "bob",
+            "local_login": None, "kind": "push", "origin": "app",
+            "method": "push", "outcome": "approved", "reason": None,
+            "city": None, "region": None, "country": None, "new_country": False,
+            "source_ip": None, "machine_id": None, "machine_name": None,
+            "service": None, "context": None, "approval_id": "ap2",
+            "seq": None, "gap_count": None, "clock_skew_seconds": None,
+        }
+        srv = self._srv({"items": [fleet, push], "next_cursor": "c2", "has_more": True})
+        result = Client("rka_test", base_url=srv.url).list_sign_in_log()
+        srv.stop()
+        assert result == {"items": [fleet, push], "next_cursor": "c2", "has_more": True}
+        assert result["items"][0]["machine_id"] == "m1"
+        assert result["items"][0]["region"] == ""
+        assert result["items"][1]["city"] is None
+        assert result["items"][1]["machine_id"] is None
+        assert result["has_more"] is True
+
+    def test_invalid_cursor_surfaces_code(self):
+        srv = self._srv(
+            {"error": {"code": "INVALID_CURSOR", "message": "bad cursor"}}, status=400
+        )
+        with pytest.raises(U2AuthError) as exc:
+            Client("rka_test", base_url=srv.url).list_sign_in_log(cursor="zzz")
+        srv.stop()
+        assert exc.value.code == "INVALID_CURSOR"
+        assert exc.value.status_code == 400
+
+    def test_machine_key_not_allowed_surfaces_code(self):
+        srv = self._srv(
+            {"error": {"code": "MACHINE_KEY_NOT_ALLOWED", "message": "use an app key"}},
+            status=403,
+        )
+        with pytest.raises(U2AuthError) as exc:
+            Client("rka_test", base_url=srv.url).list_sign_in_log()
+        srv.stop()
+        assert exc.value.code == "MACHINE_KEY_NOT_ALLOWED"
+        assert exc.value.status_code == 403
+
+
 class TestListEnrolmentsUserIdentifier:
     def test_user_identifier_included_when_given(self):
         srv = MockServer(

@@ -192,6 +192,28 @@ while True:
     cursor = page["next_cursor"]
 ```
 
+### `client.list_sign_in_log(*, limit=0, cursor="") -> dict`
+
+Calls `GET /api/v1/sdk/sign-in-log`. Returns `{"items": [...], "next_cursor": "...", "has_more": bool}`, oldest first. `limit` defaults to 500 on the server (max 1000); `limit <= 0` is omitted, as is an empty `cursor`. Raises `U2AuthError` with code `INVALID_CURSOR` for a malformed cursor, or `MACHINE_KEY_NOT_ALLOWED` if called with a machine key — use an app key.
+
+#### Export the sign-in log
+
+Pull the log on a schedule: load your saved cursor, call `list_sign_in_log`, persist `next_cursor`, and repeat while `has_more` is true.
+
+```python
+cursor = load_cursor()  # "" on the first run
+while True:
+    page = client.list_sign_in_log(limit=1000, cursor=cursor)
+    for ev in page["items"]:
+        store(ev)
+    cursor = page["next_cursor"]
+    save_cursor(cursor)
+    if not page["has_more"]:
+        break
+```
+
+Notes: rows are served about 30 seconds after they are recorded, so a fresh sign-in may not appear immediately. An expired push and its machine report both appear as separate rows; they are related by `approval_id`.
+
 ### Helpers (no API call)
 
 ```python
